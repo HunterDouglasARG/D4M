@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es-AR">
 <head>
@@ -35,10 +34,10 @@
   .seg{display:flex;gap:0;border:1px solid var(--linea);border-radius:100px;overflow:hidden;width:max-content}
   .seg button{border:0;background:#fff;color:var(--mudo);padding:6px 20px;font-size:13.5px;font-weight:500}
   .seg button[aria-selected=true]{background:var(--rojo);color:#fff}
-  .rail{display:flex;gap:6px;overflow-x:auto;margin-top:8px;scrollbar-width:none;-ms-overflow-style:none}
-  .rail::-webkit-scrollbar{display:none}
+  .rail{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
   .rail button{flex:0 0 auto;border:1px solid var(--linea);background:#fff;color:var(--mudo);
-    border-radius:100px;padding:7px 15px;font-size:13.5px;font-weight:500;white-space:nowrap}
+    border-radius:100px;padding:6px 13px;font-size:13px;font-weight:500;white-space:nowrap}
+  @media(max-width:620px){.rail button{padding:6px 11px;font-size:12.5px}}
   .rail button[aria-selected=true]{background:var(--tinta);border-color:var(--tinta);color:#fff}
 
   .grid{display:grid;gap:14px;padding:14px 0 20px}
@@ -421,9 +420,9 @@ const ROLLO = {
 };
 
 const FAM = {
-  enrollable:{tipo:"cortina", rotulo:"Enrollables", esbeltez:4, dim:true, mot:"enr",
+  enrollable:{tipo:"cortina", rotulo:"Enrollables", esbeltez:4, dim:true, mot:"enr", subfam:true,
     telas:[
-      {n:"Dim Out",p:4.40,c:"Especiales",k:"soldables"},{n:"Málaga BO",p:5.50,c:"Black Out",k:"soldables"},
+      {n:"Dim Out",p:4.40,c:"Black Out",k:"soldables"},{n:"Málaga BO",p:5.50,c:"Black Out",k:"soldables"},
       {n:"Luna",p:38.20,c:"Black Out",k:"pesadas"},{n:"Inca BO",p:47.70,c:"Black Out",k:"pesadas"},
       {n:"Mora BO",p:42,c:"Black Out",k:"pesadas"},{n:"Perla",p:36.40,e:52.30,c:"Black Out",k:"pesadas"},
       {n:"Polo · Polo Max",p:20.10,e:36.70,c:"Black Out",k:"soldables"},
@@ -511,15 +510,66 @@ Object.keys(TOLD).forEach(k=>{
 FAM.t_bali = {tipo:"toldo", rotulo:"Isla Bali", bali:true, tkey:"bali", opcionales:OPC_TOLDO_BASE.slice()};
 
 /* ══════════════════════════════════════════════════════════════
+   3b · ORDEN — todas las listas van de lo más simple a lo más complejo
+   ══════════════════════════════════════════════════════════════ */
+const ORDEN = {
+  cortina:["enrollable","duo","verticales","aluminio","madera","paneles","celulares","rieles"],
+  toldo:["t_fijo","t_solaris","t_nimbus_mini","t_nimbus_sc","t_nimbus_cc","t_zip",
+         "t_indico90","t_indico170","t_smart","t_iris","t_a1","t_m1","t_gemini","t_bali"]
+};
+const iOf = (arr,n) => arr.findIndex(x=>x.n===n);
+// tela que se preselecciona al elegir cada subfamilia
+const TELA_DEFAULT = {"Black Out":"Polo · Polo Max", "Screen":"Yuma 3 y 5 Plus"};
+const telaDe = (telas, sub) => {
+  const i = iOf(telas, TELA_DEFAULT[sub]);
+  return (i >= 0 && telas[i].c === sub) ? i : telas.findIndex(t=>t.c===sub);
+};
+const subfamilias = telas => {
+  const g = new Map();
+  telas.forEach(t=>{ const a=g.get(t.c); if(!a) g.set(t.c,{min:t.p,n:1}); else { a.min=Math.min(a.min,t.p); a.n++; } });
+  return [...g.entries()].sort((a,b)=>a[1].min-b[1].min).map(([c,v])=>({c, n:v.n}));
+};
+const porPrecio = arr => arr.sort((a,b)=>a.p-b.p);
+
+(function ordenar(){
+  // dentro de cada familia de cortinas: telas, mecanismos, láminas, sistemas y opcionales por precio
+  Object.values(FAM).forEach(f=>{
+    ["telas","mecanismos","allIn","sistemas","scorpio","opcionales"].forEach(k=>{
+      if (Array.isArray(f[k])) porPrecio(f[k]);
+    });
+  });
+  // motores por precio; accesorios por precio dentro de cada grupo
+  Object.values(MOT).forEach(m=>{
+    porPrecio(m.motores);
+    const g=[]; m.acc.forEach(a=>{ const k=a.g||""; let b=g.find(x=>x.k===k); if(!b){b={k,v:[]};g.push(b);} b.v.push(a); });
+    m.acc = g.flatMap(b=>porPrecio(b.v));
+  });
+  // telas de toldo: por el precio más bajo disponible en su grilla
+  const minP = m => { let x=Infinity; m.forEach(r=>r.forEach(v=>{ if(v!=null && v<x) x=v; })); return x; };
+  Object.keys(TOLD).forEach(k=>{
+    if (k.startsWith("_")) return;
+    const t=TOLD[k]; if (!t.telas) return;
+    const orden=Object.keys(t.telas).sort((a,b)=>minP(t.telas[a])-minP(t.telas[b]));
+    const nuevo={}; orden.forEach(n=>nuevo[n]=t.telas[n]); t.telas=nuevo;
+  });
+  const F=TOLD._faldon;
+  const minF = o => Math.min(...["200","400"].flatMap(a=>o[a].filter(v=>v!=null)));
+  const of_=Object.keys(F.telas).sort((a,b)=>minF(F.telas[a])-minF(F.telas[b]));
+  const nf={}; of_.forEach(n=>nf[n]=F.telas[n]); F.telas=nf;
+})();
+
+/* ══════════════════════════════════════════════════════════════
    4 · ESTADO
    ══════════════════════════════════════════════════════════════ */
 const S = {
   grupo:"cortina", fam:"enrollable",
   ancho:1500, alto:2000, cant:1,
-  tela:6, mec:3, estampada:false, batten:false,
+  sub:"Black Out",
+  tela:iOf(FAM.enrollable.telas,"Polo · Polo Max"),
+  mec:iOf(FAM.enrollable.mecanismos,"BM38"), estampada:false, batten:false,
   allIn:0, sistema:0, accionCel:0, motorizada:false,
   vertModo:"pared", vertTecho:false,
-  rielTipo:"scorpio", rielItem:3, bastones:0,
+  rielTipo:"scorpio", rielItem:iOf(FAM.rieles.scorpio,"Motorizado Heavy Duty · lateral"), bastones:0,
   tTela:0, tFila:0, baliVar:"manual2", baliProy:0, baliAncho:0,
   tensorLargo:0, faldon:false, faldonTela:0, faldonAlto:"200", cobertor:"no",
   motor:-1, acc:{}, opcionales:{},
@@ -791,8 +841,8 @@ function regla(val,min,max,mal){
 }
 
 function renderRail(){
-  $("rail").innerHTML = Object.entries(FAM).filter(([,v])=>v.tipo===S.grupo)
-    .map(([k,v])=>`<button role="tab" data-f="${k}" aria-selected="${k===S.fam}">${esc(v.rotulo)}</button>`).join("");
+  $("rail").innerHTML = ORDEN[S.grupo].filter(k=>FAM[k])
+    .map(k=>`<button role="tab" data-f="${k}" aria-selected="${k===S.fam}">${esc(FAM[k].rotulo)}</button>`).join("");
   [...$("seg").children].forEach(b=>b.setAttribute("aria-selected", b.dataset.g===S.grupo));
 }
 
@@ -881,7 +931,19 @@ function renderProducto(){
       h += `<div class="f"><label for="ritem">Sistema</label><select id="ritem">${
         opt(f.scorpio,S.rielItem,o=>`${o.n} — ${u$(o.p)}/m`)}</select></div>`;
   }
-  if (f.telas) h += `<div class="f"><label for="tela">Tela</label><select id="tela">${
+  if (f.telas && f.subfam){
+    const cats = subfamilias(f.telas);
+    if (!cats.some(x=>x.c===S.sub)) S.sub = cats[0].c;
+    const idxs = f.telas.map((t,i)=>i).filter(i=>f.telas[i].c===S.sub);
+    if (!idxs.includes(S.tela)) S.tela = telaDe(f.telas, S.sub);
+    h += `<div class="f"><label for="sub">Tipo de tela</label><select id="sub">${
+      cats.map(x=>`<option value="${esc(x.c)}"${x.c===S.sub?" selected":""}>${esc(x.c)} · ${x.n} tela${x.n>1?"s":""}</option>`).join("")
+    }</select></div>
+    <div class="f"><label for="tela">Tela</label><select id="tela">${
+      idxs.map(i=>`<option value="${i}"${i===S.tela?" selected":""}>${esc(f.telas[i].n)} — ${u$(f.telas[i].p)}/m²</option>`).join("")
+    }</select></div>`;
+  }
+  else if (f.telas) h += `<div class="f"><label for="tela">Tela</label><select id="tela">${
     opt(f.telas,S.tela,o=>`${o.n} · ${o.c} — ${u$(o.p)}/m²`)}</select></div>`;
   if (f.mecanismos){
     const idxs = f.mecanismos.map((m,i)=>i).filter(i=> S.motorizada ? f.mecanismos[i].m : true);
@@ -1029,9 +1091,9 @@ function renderPresupuesto(){
     <div class="big"><span>Total</span><span class="num">${a$(neto*(1+CONFIG.IVA/100))}</span></div>`;
   $("legalBox").innerHTML = `<div class="legal">${esc(LEGAL)}</div>`;
   $("acciones").innerHTML = `
-    <button class="btn rojo" id="bImg">Guardar imagen</button>
+    <button class="btn rojo" id="bCopy">Copiar imagen</button>
+    <button class="btn" id="bImg">Descargar imagen</button>
     <button class="btn" id="bPdf">Guardar PDF</button>
-    <button class="btn" id="bTxt">Copiar texto</button>
     <button class="btn" id="bDel">Vaciar</button>`;
 }
 
@@ -1054,9 +1116,14 @@ function renderTodo(){
 function resetFam(){
   Object.assign(S,{tela:0,mec:0,sistema:0,allIn:0,accionCel:0,estampada:false,batten:false,
     motorizada:false,motor:-1,acc:{},opcionales:{},vertModo:"pared",vertTecho:false,
-    rielTipo:"scorpio",rielItem:3,bastones:0,tTela:0,tFila:0,tensorLargo:0,
+    rielTipo:"scorpio",rielItem:iOf(FAM.rieles.scorpio,"Motorizado Heavy Duty · lateral"),
+    bastones:0,tTela:0,tFila:0,tensorLargo:0,
     faldon:false,faldonTela:0,faldonAlto:"200",cobertor:"no",baliVar:"manual2",baliProy:0,baliAncho:0});
-  if (S.fam==="enrollable"){ S.tela=6; S.mec=3; }
+  if (S.fam==="enrollable"){
+    S.tela=iOf(FAM.enrollable.telas,"Polo · Polo Max");
+    S.sub=FAM.enrollable.telas[S.tela].c;
+    S.mec=iOf(FAM.enrollable.mecanismos,"BM38");
+  }
   const f = FAM[S.fam];
   if (f.bali){
     const t = TOLD.bali;
@@ -1073,7 +1140,7 @@ function resetFam(){
 $("seg").addEventListener("click", e=>{
   const b = e.target.closest("button[data-g]"); if(!b) return;
   S.grupo = b.dataset.g;
-  S.fam = Object.keys(FAM).find(k=>FAM[k].tipo===S.grupo);
+  S.fam = ORDEN[S.grupo][0];
   resetFam(); renderTodo(); window.scrollTo({top:0,behavior:"smooth"});
 });
 
@@ -1106,6 +1173,10 @@ $("medida").addEventListener("change", e=>{
 $("producto").addEventListener("change", e=>{
   const id=e.target.id, v=e.target.value;
   if (id==="acc"){ S.motorizada = v==="1"; S.motor=-1; S.acc={}; }
+  else if (id==="sub"){
+    S.sub = v; S.estampada = false;
+    S.tela = telaDe(FAM[S.fam].telas, v);
+  }
   else if (id==="tela"){ S.tela=+v; S.estampada=false; }
   else if (id==="ttela") S.tTela=+v;
   else if (id==="mec") S.mec=+v;
@@ -1191,9 +1262,9 @@ $("addDesk").addEventListener("click", agregar);
 
 $("acciones").addEventListener("click", e=>{
   if (e.target.id==="bDel"){ S.items=[]; renderPresupuesto(); }
-  else if (e.target.id==="bTxt") copiarTexto(e.target);
   else if (e.target.id==="bPdf") imprimir();
-  else if (e.target.id==="bImg") imagen(e.target);
+  else if (e.target.id==="bCopy") imagen(e.target, "copiar");
+  else if (e.target.id==="bImg") imagen(e.target, "bajar");
 });
 $("items").addEventListener("click", e=>{
   const x=e.target.closest("[data-x]"); if(!x) return;
@@ -1210,19 +1281,6 @@ function encabezado(){
 function totales(){
   const neto = S.items.reduce((s,i)=>s+i.ars,0);
   return {neto, iva:neto*CONFIG.IVA/100, total:neto*(1+CONFIG.IVA/100)};
-}
-
-function copiarTexto(btn){
-  const {cl,ob,fecha}=encabezado(), T=totales();
-  const l=["PRESUPUESTO SUNSET", fecha];
-  if (cl) l.push("Cliente: "+cl);
-  if (ob) l.push("Obra: "+ob);
-  l.push("");
-  S.items.forEach((it,i)=>l.push(`${i+1}. ${it.titulo}\n   ${it.detalle}\n   ${a$(it.ars)}`));
-  l.push("", `Subtotal: ${a$(T.neto)}`, `IVA ${CONFIG.IVA}%: ${a$(T.iva)}`, `TOTAL: ${a$(T.total)}`, "", LEGAL);
-  navigator.clipboard.writeText(l.join("\n")).then(
-    ()=>{btn.textContent="Copiado"; setTimeout(()=>btn.textContent="Copiar texto",1500);},
-    ()=>{btn.textContent="No se pudo"; setTimeout(()=>btn.textContent="Copiar texto",1800);});
 }
 
 function imprimir(){
@@ -1263,8 +1321,10 @@ function envolver(ctx, txt, max){
   return out;
 }
 
-function imagen(btn){
+function imagen(btn, modo){
   const {cl,ob,fecha}=encabezado(), T=totales();
+  const orig = btn.textContent;
+  btn.textContent = "Generando…";
   const W=1080, P=64;
   const cv=document.createElement("canvas"), ctx=cv.getContext("2d");
   const FF=getComputedStyle(document.body).fontFamily;
@@ -1315,20 +1375,21 @@ function imagen(btn){
 
     cv.toBlob(blob=>{
       const nombre="presupuesto-sunset"+(cl?"-"+cl.toLowerCase().replace(/[^a-z0-9]+/g,"-"):"")+".png";
+      const ok=(t)=>{ btn.textContent=t; setTimeout(()=>btn.textContent=orig, 1900); };
+      if (modo==="bajar"){ bajar(blob,nombre); ok("Descargada"); return; }
       if (navigator.clipboard && window.ClipboardItem){
         navigator.clipboard.write([new ClipboardItem({"image/png":blob})]).then(
-          ()=>{btn.textContent="Copiada al portapapeles"; setTimeout(()=>btn.textContent="Guardar imagen",1900);},
-          ()=>bajar(blob,nombre,btn));
-      } else bajar(blob,nombre,btn);
+          ()=>ok("Copiada · pegala en WhatsApp"),
+          ()=>{ bajar(blob,nombre); ok("Descargada en su lugar"); });
+      } else { bajar(blob,nombre); ok("Descargada en su lugar"); }
     },"image/png");
   };
   img.src=LOGO;
 }
-function bajar(blob,nombre,btn){
+function bajar(blob,nombre){
   const a=document.createElement("a");
   a.href=URL.createObjectURL(blob); a.download=nombre; a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),4000);
-  if (btn){ btn.textContent="Descargada"; setTimeout(()=>btn.textContent="Guardar imagen",1600); }
 }
 
 /* ══════════════════════════════════════════════════════════════
