@@ -832,12 +832,30 @@ function chequear(){
 function opt(arr, sel, fmt){
   return arr.map((o,i)=>`<option value="${i}"${i===sel?" selected":""}>${esc(fmt(o))}</option>`).join("");
 }
-function regla(val,min,max,mal){
-  if (min==null||max==null||max<=min) return "";
+function regla(campo,val,min,max,mal){
+  if (min==null||max==null||max<=min) return `<div class="regla" id="rg-${campo}" hidden></div>`;
   const pct = Math.max(0, Math.min(100, ((val-min)/(max-min))*100));
-  return `<div class="regla ${mal?"mal":""}">
+  return `<div class="regla ${mal?"mal":""}" id="rg-${campo}">
     <div class="track"><div class="pin" style="left:calc(${pct}% - 1.5px)"></div></div>
     <div class="lbl"><span>${min} mm</span><span>${max} mm</span></div></div>`;
+}
+
+/* actualiza regla y estado de error sin tocar el valor ni el foco del input */
+function refrescarRegla(campo, val, min, max, mal){
+  const inp = $(campo), rg = $("rg-"+campo);
+  if (inp) inp.classList.toggle("mal", !!mal);
+  if (!rg) return;
+  if (min==null || max==null || max<=min){ rg.hidden = true; rg.innerHTML = ""; return; }
+  if (rg.hidden || !rg.querySelector(".pin")){
+    rg.hidden = false;
+    rg.innerHTML = `<div class="track"><div class="pin"></div></div>
+      <div class="lbl"><span></span><span></span></div>`;
+  }
+  const pct = Math.max(0, Math.min(100, ((val-min)/(max-min))*100));
+  rg.classList.toggle("mal", !!mal);
+  rg.querySelector(".pin").style.left = `calc(${pct}% - 1.5px)`;
+  const sp = rg.querySelectorAll(".lbl span");
+  sp[0].textContent = min+" mm"; sp[1].textContent = max+" mm";
 }
 
 function renderRail(){
@@ -866,10 +884,10 @@ function renderMedida(chk){
     h += `<div class="${usaAlto?"row":""}">`;
     if (usaAncho) h += `<div class="f"><label for="ancho">Ancho en mm</label>
       <input type="number" id="ancho" value="${S.ancho}" inputmode="numeric" class="${chk.malAncho?"mal":""}">
-      ${regla(S.ancho,lim[0],lim[1],chk.malAncho)}</div>`;
+      ${regla("ancho",S.ancho,lim[0],lim[1],chk.malAncho)}</div>`;
     if (usaAlto) h += `<div class="f"><label for="alto">${labAlto}</label>
       <input type="number" id="alto" value="${S.alto}" inputmode="numeric" class="${chk.malAlto?"mal":""}">
-      ${regla(S.alto,lim[2],lim[3],chk.malAlto)}</div>`;
+      ${regla("alto",S.alto,lim[2],lim[3],chk.malAlto)}</div>`;
     h += `</div>`;
 
     if (f.tipo==="toldo" && esFijo(f.toldo.rows)){
@@ -889,6 +907,10 @@ function renderMedida(chk){
     }
     $("medida").innerHTML = h;
   }
+  pintarAvisos(chk);
+}
+
+function pintarAvisos(chk){
   $("avisos").innerHTML = chk.avisos.map(a =>
     `<div class="av ${a.t}"><i>${a.t==="info"?"i":"!"}</i><span>${esc(a.m)}</span></div>`).join("");
 }
@@ -1099,7 +1121,11 @@ function renderPresupuesto(){
 
 function render(){
   const chk = chequear(), c = calcular();
-  renderMedida(chk); renderCascada(c); renderDesglose(c);
+  const lim = chk.lim||[null,null,null,null];
+  refrescarRegla("ancho", S.ancho, lim[0], lim[1], chk.malAncho);
+  refrescarRegla("alto", S.alto, lim[2], lim[3], chk.malAlto);
+  pintarAvisos(chk);
+  renderCascada(c); renderDesglose(c);
   const stop = chk.bloquea || c.listaU <= 0;
   $("addBar").disabled = stop; $("addDesk").disabled = stop;
   $("addBar").textContent = chk.bloquea ? "No disponible" : "Agregar";
@@ -1107,7 +1133,7 @@ function render(){
 }
 
 function renderTodo(){
-  renderRail(); renderProducto(); renderMot(); renderOpc(); render(); renderPresupuesto();
+  renderRail(); renderProducto(); renderMedida(chequear()); renderMot(); renderOpc(); render(); renderPresupuesto();
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -1156,10 +1182,7 @@ $("medida").addEventListener("input", e=>{
   else if (id==="cant") S.cant = Math.max(1, parseInt(e.target.value)||1);
   else if (id==="bastones") S.bastones = Math.max(0, parseInt(e.target.value)||0);
   else return;
-  const foco = document.activeElement && document.activeElement.id;
-  const pos = document.activeElement && document.activeElement.selectionStart;
   render();
-  if (foco){ const el=$(foco); if(el){ el.focus(); try{el.setSelectionRange(pos,pos);}catch(_){} } }
 });
 $("medida").addEventListener("change", e=>{
   const id=e.target.id, v=e.target.value;
@@ -1203,9 +1226,7 @@ $("producto").addEventListener("change", e=>{
 $("producto").addEventListener("input", e=>{
   if (e.target.id!=="tlargo") return;
   S.tensorLargo = parseFloat(e.target.value)||0;
-  const pos = e.target.selectionStart;
   render();
-  const el=$("tlargo"); if(el){ el.focus(); try{el.setSelectionRange(pos,pos);}catch(_){} }
 });
 
 $("cMot").addEventListener("change", e=>{
