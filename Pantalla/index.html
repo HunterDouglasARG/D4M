@@ -440,7 +440,7 @@ function renderPodio(){
 }
 
 /* ============ ROTACION · 5 min ============ */
-const SL=['s1','s2b','s3','s4','i3','i4','i5','i6'], SECS=300;
+const SL=['s1','s2b','s3','s4','i3','i4','i5','i6'], SECS=30;
 let idx=0, timer=null;
 document.getElementById('pips').innerHTML = SL.map((_,i)=>`<div class="pip" onclick="go(${i})"></div>`).join('');
 function show(i){
