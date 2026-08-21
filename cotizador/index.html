@@ -468,10 +468,18 @@ function tradRieles(){
   r.push(["reforzado","Riel Manual Reforzado"], ["scorpio","Riel Motorizado Scorpio"]);
   return r;
 }
+/* La tabla Scorpio de la pág. 5 mezcla rieles manuales (Maxi Simple, Maxi Plus
+   Reforzado, Maxi Plus Cordón) con los cuatro Sistemas Motorizados y dos
+   accesorios. Sólo los "Sistema Motorizado ..." llevan motor. */
+const scorpioMotorizado = i => {
+  const it = FAM.rieles.scorpio[i];
+  return !!it && /Motorizado/i.test(it.n);
+};
+
 /* un solo lugar decide si la motorización está activa */
 function motActiva(f){
   if (!f.mot || !MOT[f.mot]) return false;
-  if (f.trad) return S.trRiel === "scorpio";
+  if (f.trad) return S.trRiel === "scorpio" && scorpioMotorizado(S.trScorpio);
   if (f.tipo === "toldo") return S.motorizada;
   if (S.fam === "rieles") return S.rielTipo === "scorpio";
   return S.motorizada;
@@ -929,10 +937,10 @@ function chequear(){
       }
       if (S.trRiel === "reforzado")
         out.push({t:"stop", m:"El Riel Manual Reforzado no tiene precio publicado en la lista de julio 2026. Pedir el valor a fábrica, o cotizar con Scorpio."});
-      if (T.rollo == null)
-        out.push({t:"info", m:`${T.n} no figura en la tabla de anchos de rollo de la lista. Por los cortes de su grilla corresponde a un rollo de ${mm(T.rolloInf)}.`});
-      else if (T.rollo !== T.rolloInf)
-        out.push({t:"warn", m:`La lista declara rollo de ${mm(T.rollo)} para ${T.n}, pero los cortes de su grilla corresponden a ${mm(T.rolloInf)}. Cambia desde dónde lleva unión entre paños. Confirmar con fábrica.`});
+      /* Los avisos de ancho de rollo (Organza 2400 vs 2800, Serena sin declarar)
+         quedan fuera de la interfaz por pedido de Mateo: son un tema a resolver con
+         fábrica, no algo que el vendedor tenga que ver en cada cotización. Los datos
+         siguen en TRAD.telas[].rollo y .rolloInf por si hay que volver a mostrarlos. */
     }
     const ar = (S.ancho/1000)*(S.alto/1000);
     if (f.dim && ar>0 && ar<1) out.push({t:"info", m:`Área real ${ar.toFixed(2)} m². Se factura el mínimo de 1 m².`});
@@ -1115,7 +1123,9 @@ function renderProducto(){
     }</select></div>`;
     if (S.trRiel === "scorpio")
       h += `<div class="f"><label for="trsc">Sistema Scorpio</label><select id="trsc">${
-        opt(FAM.rieles.scorpio, S.trScorpio, o=>`${o.n} — ${u$(o.p)}/m`)}</select></div>`;
+        FAM.rieles.scorpio.map((o,i)=>`<option value="${i}"${i===S.trScorpio?" selected":""}>${
+          esc(o.n)} — ${u$(o.p)}/m${/Motorizado/i.test(o.n)?" · con motor":" · manual"}</option>`).join("")
+      }</select></div>`;
     $("producto").innerHTML = h; return;
   }
 
@@ -1419,7 +1429,7 @@ $("producto").addEventListener("change", e=>{
   }
   else if (id==="trbol") S.trBolsillo=+v;
   else if (id==="trriel"){ S.trRiel=v; S.motor=-1; S.acc={}; }
-  else if (id==="trsc") S.trScorpio=+v;
+  else if (id==="trsc"){ S.trScorpio=+v; S.motor=-1; S.acc={}; }
   else if (id==="rtipo"){ S.rielTipo=v; S.motor=-1; S.acc={}; }
   else if (id==="ritem") S.rielItem=+v;
   else if (id==="bvar"){
